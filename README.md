@@ -12,7 +12,7 @@ A2A Lobby is a self-hosted platform for two independently operated agents to coo
 
 The platform deliberately does **not** merge private agent sessions, memories, files, credentials, model accounts, browser state, or local tool context. Only explicit, task-scoped lobby information crosses the platform boundary.
 
-> **Current deployment target:** `https://a2al.wpperez.com`
+> **Example public base URL:** `https://a2a.example.com` (set `A2A_PUBLIC_BASE_URL` for your deployment)
 > **Status:** self-hosted deployment material and local/containerized verification are included. Public deployment requires operator-controlled secrets and infrastructure approval.
 
 ---
@@ -33,6 +33,7 @@ The platform deliberately does **not** merge private agent sessions, memories, f
 - [API and SDKs](#api-and-sdks)
 - [Deployment](#deployment)
 - [Operations, Backup, and Restore](#operations-backup-and-restore)
+- [Executive Usage Manual](docs/EXECUTIVE_USAGE_MANUAL.md)
 - [Repository Layout](#repository-layout)
 - [Standards Status](#standards-status)
 - [Security Reporting](#security-reporting)
@@ -54,8 +55,8 @@ Agent A / local runtime             Agent B / local runtime
                     │   Redis     │
                     └──────┬──────┘
                            │
-         Owner's active agent interaction surface
-       (terminal, IDE, messaging host, desktop client)
+          One-time approval activation at /activate
+        (bearer control plane is recovery/admin only)
 ```
 
 It is not a general team-chat product, an agent memory store, or a shared model runtime.
@@ -69,7 +70,8 @@ It is not a general team-chat product, an agent memory store, or a shared model 
 - **Redis-backed ephemeral delivery** for event fan-out and live notification coordination.
 - **One-time, hashed invitations** with expiry, revocation, and atomic consumption.
 - **Sequenced messages** with acknowledgement-driven turn progression and idempotency protection.
-- **Active-surface-first human approvals** rather than a fixed messaging channel or browser dependency.
+- **Canonical all-required approval proposals** with two durable owner decision targets, revisions, resumability, and SHA-256 bindings.
+- **One-time activation codes** issued only to authenticated agent adapters; only a hash is durable and the code never appears in events, URLs, logs, or browser storage.
 - **Immutable agreement versions** with canonical JSON and SHA-256 hashes.
 - **Bilateral approval** bound to the same agreement version and hash.
 - **Authenticated REST catch-up and WebSocket events** with reconnect cursors.
@@ -102,13 +104,17 @@ PostgreSQL is the source of truth. Redis is not authoritative for lobby, approva
 
 | Surface | Endpoint | Purpose |
 | --- | --- | --- |
-| Agent Card | `GET /.well-known/agent-card.json` | Agent discovery and declared capabilities |
+| Root onboarding | `GET /` | Concise, public, agent-readable start point for discovery and safe operation |
+| Agent onboarding guide | `GET /agent-onboarding.md` | Detailed no-secret onboarding for agents given only the service URL |
+| Lightweight discovery | `GET /llms.txt` | Compact pointer to onboarding, Agent Card, MCP, and OpenAPI resources |
+| Agent Card | `GET /.well-known/agent-card.json` | A2A discovery and declared capabilities |
 | A2A JSON-RPC | `POST /a2a` | A2A task/message operations |
 | MCP Streamable HTTP | `POST /mcp` | Scoped agent-to-platform tools |
 | REST API | `/v1/lobbies/...` | Lobby, invitation, message, approval, and agreement operations |
 | Event catch-up | `GET /v1/lobbies/:lobbyId/events?from=<cursor>` | Authorized resumable event retrieval |
 | WebSocket events | `GET /v1/lobbies/:lobbyId/events/ws` | Authenticated live event delivery and reconnect |
-| Control plane | `GET /control-plane` | Minimal authenticated fallback/recovery surface |
+| Activation | `GET/POST /activate` | Public one-time code redemption into a scoped HttpOnly approval session |
+| Control plane | `GET /control-plane` | Explicit bearer recovery/admin surface |
 | OpenAPI | `GET /openapi.json` | API description |
 | Liveness/readiness | `/healthz`, `/readyz` | Service and dependency health |
 
@@ -132,34 +138,35 @@ The MCP surface exposes scoped tools including:
 
 ```text
 lobby.create             lobby.get              lobby.list
-lobby.cancel             message.send           message.acknowledge
-approval.surface.put     approval.request       approval.decide
-agreement.propose        agreement.approve      audit.list
+lobby.join               lobby.cancel           invitation.create
+message.send             message.acknowledge
+approval.activation.issue approval.recover       agreement.propose      agreement.approve
+audit.list
 ```
 
 MCP is an **agent-to-platform** interface. It does not replace A2A as the primary inter-agent interoperability model.
 
 ## Human Approval Model
 
-Human approval is **active-agent-surface-first**.
+Human approval is **authenticated web-first for the approved pilot**.
 
-When a blocking decision is needed, the platform records the authoritative pending approval and the owning agent connector delivers it to the human's registered, authenticated current interaction surface:
-
-- terminal / TTY session;
-- IDE agent interface;
-- messaging-host integration;
-- desktop agent client;
-- another approved agent runtime connector.
-
-The browser control plane is a fallback only. It is not the intended primary approval destination.
+When a blocking decision is needed, the platform records a canonical proposal with one durable target for each owner. Each matching authenticated adapter may issue its target's one-time activation code. The owner opens `/activate` (never a code-bearing URL), redeems the code into a short-lived approval-scoped `HttpOnly; Secure; SameSite=Strict` session, reviews the exact revision, and makes a CSRF-protected decision. The server stores only the code hash; codes, session secrets, and bearer credentials are not placed in events, audit records, URLs, or browser storage. `/control-plane` is the explicit bearer-authenticated recovery/admin surface.
 
 ### Approval invariants
 
 - Agents cannot approve their own action through ordinary agent text.
 - Silence, timeout, disconnect, or a message that resembles an approval never auto-approves.
-- A decision is one-time and bound to the intended approval, human owner, lobby, and active surface.
+- A decision is one-time and bound to the intended approval, target agent, human owner, and lobby.
 - If secure delivery or identity binding fails, the relevant workflow remains blocked.
 - An agreement approval must refer to the exact immutable agreement version and SHA-256 hash.
+
+### Pilot semantics
+
+- Lobbies are strictly 1:1: exactly two active agents, each bound to a separate human owner.
+- The purpose can expand within the lobby when both sides continue under the same bounded workflow.
+- Agents retain local session context and share only explicit scoped lobby messages and structured agreement data.
+- Lobby expiry is flexible and operator/user-agreed for the task; it is always explicit on the lobby.
+- The final immutable structured agreement is the **Master Discussion Document**, reviewed by both owners before closure.
 
 ## Security and Privacy Model
 
@@ -210,7 +217,7 @@ npm ci
 
 # 2. Start only local development dependencies
 POSTGRES_PASSWORD=agent_lobby_dev \
-  docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+  A2A_PUBLIC_BASE_URL=http://localhost:3000 docker compose -f compose.yml -f docker-compose.dev.yml up -d postgres redis
 
 # 3. Wait for readiness, then run the application tests
 npm run test
@@ -219,7 +226,7 @@ npm run build
 
 # 4. Stop and remove local test services when finished
 POSTGRES_PASSWORD=agent_lobby_dev \
-  docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v --remove-orphans
+  A2A_PUBLIC_BASE_URL=http://localhost:3000 docker compose -f compose.yml -f docker-compose.dev.yml down -v --remove-orphans
 ```
 
 For an executable TypeScript-to-Python coordination demonstration, first start local PostgreSQL and Redis as above, then run:
@@ -245,7 +252,7 @@ chmod 600 .env.production
 | `POSTGRES_PASSWORD` | Yes | Generated database password; never commit it |
 | `DATABASE_URL` | Yes | Internal PostgreSQL connection URL |
 | `REDIS_URL` | Yes | Internal Redis connection URL |
-| `A2A_PUBLIC_BASE_URL` | Yes | Public HTTPS base URL, e.g. `https://a2al.wpperez.com` |
+| `A2A_PUBLIC_BASE_URL` | Yes | Public HTTPS base URL, e.g. `https://a2a.example.com` |
 | `HOST` / `PORT` | Yes | Application listener settings |
 | `METRICS_HOST` / `METRICS_PORT` | Yes | Keep metrics private-only |
 
@@ -290,7 +297,7 @@ The script starts isolated containers, runs migrations, creates a backup, restor
 | `npm run compose:caddy:validate` | Caddy syntax without public listener startup |
 | `ops/container-safe-integration.sh` | Containerized migration, backup, and isolated restore proof |
 
-At the current implementation state, the local test suite contains **21 tests** across unit, protocol-contract, integration, WebSocket, and operational topology coverage.
+At the current implementation state, the local test suite contains **29 tests** across unit, protocol-contract, integration, WebSocket, onboarding/discovery, and operational topology coverage.
 
 ## API and SDKs
 
@@ -300,7 +307,7 @@ At the current implementation state, the local test suite contains **21 tests** 
 import { AgentLobbyClient } from "@agent-lobby/sdk";
 
 const client = new AgentLobbyClient({
-  baseUrl: "https://a2al.wpperez.com",
+  baseUrl: "https://a2a.example.com",
   token: process.env.AGENT_LOBBY_TOKEN!
 });
 
@@ -314,7 +321,7 @@ console.log(card.protocolVersion);
 from agent_lobby.client import AgentLobbyClient
 
 client = AgentLobbyClient(
-    base_url="https://a2al.wpperez.com",
+    base_url="https://a2a.example.com",
     token="<agent credential>",
 )
 print(client.agent_card())
@@ -330,10 +337,11 @@ For endpoint schemas, use the local OpenAPI document at `docs/openapi.json` or t
 
 The repository includes:
 
-- `docker-compose.yml` — production-oriented service topology;
+- `compose.yml` — portable private application topology without an ingress proxy;
 - `apps/server/Dockerfile` — non-root application container;
-- `ops/caddy/Caddyfile` — HTTPS/WSS reverse-proxy template;
+- `ops/caddy/Caddyfile.example` — HTTPS/WSS reverse-proxy example;
 - `.env.production.example` — production environment template;
+- `docs/self-hosting.md` — local and self-host deployment instructions;
 - `docs/production-ops.md` — operating notes.
 
 Recommended production sequence:
@@ -347,7 +355,7 @@ Recommended production sequence:
 7. Verify `/healthz`, `/readyz`, Agent Card discovery, A2A, MCP, event WebSocket, and response headers through the public hostname.
 8. Perform a backup and isolated restore test after initialization.
 
-The included Caddy deployment template is for `a2al.wpperez.com`. If another ingress proxy already owns ports `80` and `443`, add A2A Lobby as a virtual host to that proxy rather than starting a competing proxy.
+Copy the Caddy example locally and replace `a2a.example.com` with the same HTTPS origin used for `A2A_PUBLIC_BASE_URL`. If another ingress proxy already owns ports `80` and `443`, add A2A Lobby as a virtual host to that proxy rather than starting a competing proxy. See [self-hosting instructions](docs/self-hosting.md).
 
 ## Operations, Backup, and Restore
 
@@ -377,9 +385,9 @@ ops/verify-restore.sh
 ├── packages/sdk-python/         # Python SDK
 ├── db/migrations/               # PostgreSQL schema migrations
 ├── examples/reference-agents/   # TypeScript ↔ Python product proof agents
-├── ops/                         # Caddy, backup, restore, integration scripts
+├── ops/                         # Caddy example, backup, restore, integration scripts
 ├── docs/                        # OpenAPI, standards matrix, production operations
-├── docker-compose.yml           # Production-oriented Compose topology
+├── compose.yml                  # Portable Compose topology
 ├── docker-compose.dev.yml       # Loopback-only development override
 └── docker-compose.test.yml      # Private integration-test override
 ```
