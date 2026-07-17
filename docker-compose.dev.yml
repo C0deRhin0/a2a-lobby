@@ -1,0 +1,19 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: agent_lobby_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  server:
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://agent_lobby:agent_lobby_dev@postgres:5432/agent_lobby
+      REDIS_URL: redis://redis:6379
+      A2A_PUBLIC_BASE_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
