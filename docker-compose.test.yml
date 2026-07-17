@@ -1,0 +1,48 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: agent_lobby_dev
+    ports: !override []
+
+  redis:
+    ports: !override []
+
+  migrate:
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgres://agent_lobby:agent_lobby_dev@postgres:5432/agent_lobby
+      REDIS_URL: redis://redis:6379
+      A2A_PUBLIC_BASE_URL: http://server:3000
+
+  server:
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgres://agent_lobby:agent_lobby_dev@postgres:5432/agent_lobby
+      REDIS_URL: redis://redis:6379
+      A2A_PUBLIC_BASE_URL: http://server:3000
+    ports: !override []
+
+  backup_verify:
+    image: postgres:16-alpine
+    profiles: ["integration-test"]
+    environment:
+      PGPASSWORD: agent_lobby_dev
+    volumes:
+      - ./ops:/ops:ro
+      - integration_backups:/backups
+    command:
+      - sh
+      - -ceu
+      - |
+        pg_dump --format=custom --no-owner --no-acl --file=/backups/agent_lobby.dump postgres://agent_lobby:agent_lobby_dev@postgres:5432/agent_lobby
+        RESTORE_SOURCE=/backups/agent_lobby.dump RESTORE_DATABASE_URL=postgres://agent_lobby:agent_lobby_dev@postgres:5432/postgres sh /ops/verify-restore.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - private
+
+volumes:
+  integration_backups:
