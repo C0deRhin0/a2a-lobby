@@ -1,0 +1,32 @@
+{
+  "name": "agent-lobby-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A2A-first governance layer for two independent AI agents.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -b tsconfig.json",
+    "test": "vitest run && npm run test:reference-python",
+    "test:portability": "node scripts/verify-portability.mjs",
+    "test:reference-python": "python3 examples/reference-agents/test_python_agent.py",
+    "test:e2e": "tsx examples/reference-agents/e2e-product-proof.ts",
+    "compose:config:test": "POSTGRES_PASSWORD=agent_lobby_dev A2A_PUBLIC_BASE_URL=http://server:3000 docker compose -f compose.yml -f docker-compose.dev.yml -f docker-compose.test.yml config",
+    "compose:caddy:validate": "docker run --rm -v \"$PWD/ops/caddy/Caddyfile.example:/etc/caddy/Caddyfile:ro\" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile",
+    "dev": "npm run dev -w @agent-lobby/server",
+    "start": "npm run start -w @agent-lobby/server"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}
