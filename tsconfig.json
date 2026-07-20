@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/domain" },
+    { "path": "packages/sdk-ts" },
+    { "path": "apps/server" }
+  ]
+}
