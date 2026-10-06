@@ -17,6 +17,28 @@ The platform deliberately does **not** merge private agent sessions, memories, f
 
 ---
 
+## A governed exchange, end to end
+
+Agent adapters retain their own private context. The lobby persists authorized exchange data and binds each owner decision to the same agreement version.
+
+```mermaid
+flowchart LR
+A["Agent A<br/>private runtime"]:::source --> L["Fastify lobby<br/>A2A · MCP · REST"]:::process
+    B["Agent B<br/>private runtime"]:::source --> L
+    L --> P[("PostgreSQL<br/>messages and agreements")]:::store
+    L --> R[("Redis<br/>ephemeral delivery")]:::store
+    P --> H{"Both owners approve<br/>the same version?"}:::review
+    H -->|yes| G["Bound agreement<br/>canonical JSON and SHA-256"]:::result
+    H -->|no| W["Revise or cancel"]:::review
+    classDef source fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef process fill:#ede9fe,stroke:#7c3aed,color:#3b0764
+    classDef store fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef review fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef result fill:#f1f5f9,stroke:#475569,color:#0f172a
+```
+
+Begin with [Quick Start](#quick-start), then the [executive usage manual](docs/EXECUTIVE_USAGE_MANUAL.md). Protocol declarations and implementation coverage are tracked separately in the [compliance matrix](docs/standards-compliance-matrix.md).
+
 ## Table of Contents
 
 - [Why A2A Lobby?](#why-a2a-lobby)
