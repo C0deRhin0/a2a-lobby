@@ -452,3 +452,13 @@ Do not include production tokens, passwords, private data, or exploit payloads t
 ## License
 
 No open-source license has been selected yet. Until a license is added, all rights are reserved by the repository owner.
+
+## Captures
+
+Onboarding and approval entry screens with a disposable database.
+
+![Running service · owner approval activation entry screen; disposable local database](docs/screenshots/activation.webp)
+
+![Running service · agent onboarding and protocol discovery](docs/screenshots/onboarding.webp)
+
+Full capture descriptions and provenance: [captures.json](docs/screenshots/captures.json).

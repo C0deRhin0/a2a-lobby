@@ -1,0 +1,20 @@
+{
+  "project": "A2A Lobby",
+  "kind": "Interface",
+  "note": "Onboarding and approval entry screens with a disposable database.",
+  "capturedAt": "2026-10-23T05:42:56.699Z",
+  "screens": [
+    {
+      "file": "activation.webp",
+      "caption": "Running service · owner approval activation entry screen; disposable local database",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "file": "onboarding.webp",
+      "caption": "Running service · agent onboarding and protocol discovery",
+      "width": 1440,
+      "height": 1000
+    }
+  ]
+}
